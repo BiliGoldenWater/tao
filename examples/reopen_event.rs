@@ -27,10 +27,14 @@ fn main() {
       }
       Event::Reopen {
         has_visible_windows,
+        api,
         ..
       } => {
+        api.prevent_default();
         println!("on reopen, has visible windows: {has_visible_windows}");
-        window = Some(Window::new(&event_loop).unwrap())
+        if !has_visible_windows {
+          window = Some(Window::new(&event_loop).unwrap());
+        }
       }
       Event::MainEventsCleared => {
         if let Some(w) = &window {

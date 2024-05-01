@@ -25,7 +25,7 @@ use objc::runtime::{Object, NO, YES};
 
 use crate::{
   dpi::LogicalSize,
-  event::{Event, StartCause, WindowEvent},
+  event::{Event, ReopenApi, StartCause, WindowEvent},
   event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
   platform::macos::ActivationPolicy,
   platform_impl::{
@@ -306,9 +306,10 @@ impl AppState {
     HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Opened { urls }));
   }
 
-  pub fn reopen(has_visible_windows: bool) {
+  pub fn reopen(has_visible_windows: bool, api: ReopenApi) {
     HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Reopen {
       has_visible_windows,
+      api,
     }));
   }
 

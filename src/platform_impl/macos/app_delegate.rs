@@ -2,10 +2,12 @@
 // Copyright 2021-2023 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
+use crate::{
+  event::ReopenApi, platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState,
+};
 
 use cocoa::{
-  base::{id, NO},
+  base::{id, NO, YES},
   foundation::NSString,
 };
 use objc::{
@@ -15,6 +17,7 @@ use objc::{
 use std::{
   cell::{RefCell, RefMut},
   os::raw::c_void,
+  sync::{Arc, Mutex},
 };
 
 use cocoa::foundation::{NSArray, NSURL};
@@ -137,9 +140,20 @@ extern "C" fn application_should_handle_reopen(
   has_visible_windows: BOOL,
 ) -> BOOL {
   trace!("Triggered `applicationShouldHandleReopen`");
-  AppState::reopen(has_visible_windows != NO);
+  let has_visible_windows = has_visible_windows != NO;
+  let should_default = Arc::new(Mutex::new(has_visible_windows));
+  let api = ReopenApi::new(Arc::clone(&should_default));
+
+  AppState::reopen(has_visible_windows, api);
+
+  let should_default = if *should_default.lock().unwrap() {
+    YES
+  } else {
+    NO
+  };
   trace!("Completed `applicationShouldHandleReopen`");
-  has_visible_windows
+
+  should_default
 }
 
 extern "C" fn application_supports_secure_restorable_state(_: &Object, _: Sel, _: id) -> BOOL {

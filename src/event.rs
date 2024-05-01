@@ -38,7 +38,10 @@
 //!
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
-use std::path::PathBuf;
+use std::{
+  path::PathBuf,
+  sync::{Arc, Mutex},
+};
 
 use crate::{
   dpi::{PhysicalPosition, PhysicalSize},
@@ -139,10 +142,13 @@ pub enum Event<'a, T: 'static> {
 
   /// ## Platform-specific
   ///
-  /// - **macOS**: https://developer.apple.com/documentation/appkit/nsapplicationdelegate/1428638-applicationshouldhandlereopen with return value same as hasVisibleWindows
+  /// - **macOS**: https://developer.apple.com/documentation/appkit/nsapplicationdelegate/1428638-applicationshouldhandlereopen with return value default to hasVisibleWindows
   /// - **Other**: Unsupported.
   #[non_exhaustive]
-  Reopen { has_visible_windows: bool },
+  Reopen {
+    has_visible_windows: bool,
+    api: ReopenApi,
+  },
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -168,8 +174,10 @@ impl<T: Clone> Clone for Event<'static, T> {
       Opened { urls } => Opened { urls: urls.clone() },
       Reopen {
         has_visible_windows,
+        api,
       } => Reopen {
         has_visible_windows: *has_visible_windows,
+        api: api.clone(),
       },
     }
   }
@@ -192,8 +200,10 @@ impl<'a, T> Event<'a, T> {
       Opened { urls } => Ok(Opened { urls }),
       Reopen {
         has_visible_windows,
+        api,
       } => Ok(Reopen {
         has_visible_windows,
+        api,
       }),
     }
   }
@@ -218,8 +228,10 @@ impl<'a, T> Event<'a, T> {
       Opened { urls } => Some(Opened { urls }),
       Reopen {
         has_visible_windows,
+        api,
       } => Some(Reopen {
         has_visible_windows,
+        api,
       }),
     }
   }
@@ -926,4 +938,40 @@ pub enum MouseScrollDelta {
   /// supported by the device (eg. a touchpad) and
   /// platform.
   PixelDelta(PhysicalPosition<f64>),
+}
+
+#[derive(Debug, Clone)]
+pub struct ReopenApi {
+  should_default: Arc<Mutex<bool>>,
+}
+
+impl ReopenApi {
+  pub fn new(should_default: Arc<Mutex<bool>>) -> Self {
+    Self { should_default }
+  }
+
+  /// Prevent the default behavior
+  pub fn prevent_default(&self) {
+    *self.should_default.lock().unwrap() = false
+  }
+
+  /// Set should perform default tasks
+  pub fn set(&self, should_perform_default: bool) {
+    *self.should_default.lock().unwrap() = should_perform_default
+  }
+}
+
+impl PartialEq for ReopenApi {
+  fn eq(&self, other: &Self) -> bool {
+    // prevent dead lock
+    let same = Arc::ptr_eq(&self.should_default, &other.should_default);
+
+    if same {
+      return true;
+    } else {
+      let this = self.should_default.lock().unwrap();
+      let other = other.should_default.lock().unwrap();
+      this.eq(&other)
+    }
+  }
 }
